@@ -1,85 +1,77 @@
+import { fileURLToPath } from 'url'
+import { watchFile, unwatchFile } from 'fs'
+import chalk from 'chalk'
+
 // ============================================================
-// 🔧 SOLO Bot Configuration
+// 🔧 SOLO Bot Configuration - الإعدادات الرئيسية
 // ============================================================
 
-export const config = {
-    // ==================== معلومات البوت ====================
-    BOT_NAME: 'SOLO Bot',
-    BOT_VERSION: '2.0.0',
-    BOT_AUTHOR: 'KING',
-    BOT_PHONE: '+201005199558',
-    
-    // ==================== معرفات المطورين والمسؤولين ====================
-    DEVELOPERS: [
-        '201005199558@s.whatsapp.net',
-        '201005199558'
-    ],
-    
-    ADMINS: [
-        '201005199558@s.whatsapp.net'
-    ],
-    
-    // ==================== إعدادات الاتصال ====================
-    SESSION_NAME: 'SOLO_SESSION',
-    SESSION_PATH: './session',
-    
-    // ==================== إعدادات قاعدة البيانات ====================
-    DATABASE_PATH: './data/bot_data.json',
-    AUTO_SAVE_INTERVAL: 30000, // 30 ثانية
-    
-    // ==================== إعدادات الأمان ====================
-    ANTI_SPAM_COOLDOWN: 3000, // 3 ثواني
-    MAX_RETRIES: 10,
-    RATE_LIMIT_MESSAGES: 5, // عدد الرسائل المسموحة
-    RATE_LIMIT_WINDOW: 60000, // في الدقيقة
-    
-    // ==================== إعدادات الألعاب ====================
-    GAME_TIMEOUT: 300000, // 5 دقائق
-    MAX_GAME_PLAYERS: 10,
-    
-    // ==================== إعدادات الاقتصاد ====================
-    STARTING_COINS: 10,
-    STARTING_DIAMONDS: 3,
-    DAILY_REWARD: 100,
-    
-    // ==================== إعدادات المجموعات ====================
-    DEFAULT_WELCOME_MESSAGE: 'أهلا وسهلا بك في المجموعة! 👋',
-    DEFAULT_GOODBYE_MESSAGE: 'وداعا! نتمنى أن تكون قضيت وقتا رائعا معنا! 👋',
-    
-    // ==================== إعدادات الميزات ====================
-    FEATURES: {
-        ANTI_LINK: true,
-        ANTI_BOT: false,
-        ANTI_SPAM: true,
-        WELCOME_MESSAGE: true,
-        AUTO_LEVELUP: true,
-        REACTION_SYSTEM: true,
-        ECONOMY_SYSTEM: true,
-        GAME_SYSTEM: true
-    },
-    
-    // ==================== إعدادات الرسائل ====================
-    PREFIX: '.',
-    COMMAND_TIMEOUT: 10000,
-    
-    // ==================== إعدادات الأداء ====================
-    CACHE_TTL: 30000, // مدة بقاء الكاش بالميلي ثانية
-    MAX_CACHE_SIZE: 1000,
-    CLEANUP_INTERVAL: 300000, // 5 دقائق
-    
-    // ==================== إعدادات الإنتاج ====================
-    DEBUG_MODE: false,
-    LOG_LEVEL: 'info', // 'debug', 'info', 'warn', 'error'
-    
-    // ==================== إعدادات الاتصال المتقدمة ====================
-    CONNECTION_OPTIONS: {
-        printQRInTerminal: false,
-        markOnlineOnConnect: true,
-        generateHighQualityLinkPreview: true,
-        syncFullHistory: false,
-        retryRequestDelayMs: 1000,
-        maxRetries: 3
-    }
-};
+// ==================== معلومات المطورين والمالكين ====================
+global.owner = [
+  ['201005199558', 'KING-X-SOLO', true], // [رقم، اسم، هل هو المالك الرئيسي]
+  ['201005199558', 'KING-X-SOLO', true]
+]
+global.mods = [] // قائمة المشرفين
+global.prems = [] // قائمة المستخدمين المميزين
 
-export default config;
+// ==================== إعدادات البوت العامة ====================
+global.BOT_NAME = 'SOLO Bot'
+global.BOT_VERSION = '2.0.0'
+global.BOT_AUTHOR = 'KING'
+global.BOT_PHONE = '201005199558' // رقم البوت بدون رمز الدولة
+global.PREFIX = '.' // بادئة الأوامر الافتراضية
+
+// ==================== إعدادات الجلسات والتنصيب ====================
+global.SESSION_NAME = 'SOLO_SESSION' // اسم مجلد الجلسة الرئيسية
+global.SUB_SESSION_DIR = 'jadibot' // اسم مجلد الجلسات المتعددة (Jadibot)
+global.SUB_BOT_LIMIT = 20 // الحد الأقصى لعدد الجلسات المتعددة (Jadibot)
+global.CAN_INSTALL = true // التحكم في إتاحة أمر التنصيب (تشغيل/إيقاف)
+global.DEVELOPER_MODE = false // true: البوت يرد على المطورين فقط، false: البوت يرد على الجميع
+
+// ==================== إعدادات قاعدة البيانات ====================
+global.DATABASE_PATH = './data/database.json'
+global.AUTO_SAVE_INTERVAL = 30000 // 30 ثانية
+
+// ==================== إعدادات الأمان والميزات ====================
+global.ANTI_SPAM_COOLDOWN = 3000 // 3 ثواني
+global.RATE_LIMIT_MESSAGES = 5 // عدد الرسائل المسموحة
+global.RATE_LIMIT_WINDOW = 60000 // في الدقيقة
+global.FEATURES = {
+    ANTI_LINK: true,
+    ANTI_BOT: false,
+    WELCOME_MESSAGE: true,
+    AUTO_LEVELUP: true,
+    REACTION_SYSTEM: true,
+    ECONOMY_SYSTEM: true,
+    GAME_SYSTEM: true
+}
+
+// ==================== إعدادات الأداء والكاش ====================
+global.CACHE_TTL = 30000 // مدة بقاء الكاش بالميلي ثانية
+global.CLEANUP_INTERVAL = 300000 // 5 دقائق
+
+// ==================== إعدادات الاتصال المتقدمة ====================
+global.CONNECTION_OPTIONS = {
+    printQRInTerminal: true,
+    markOnlineOnConnect: true,
+    generateHighQualityLinkPreview: true,
+    syncFullHistory: false,
+    retryRequestDelayMs: 1000,
+    maxRetries: 3
+}
+
+// ==================== إعدادات API (إذا لزم الأمر) ====================
+global.APIs = {
+  // Add your API keys here
+}
+global.APIKeys = {
+  // Add your API keys here
+}
+
+// ==================== نظام المراقبة الحية (Hot-Reloading) ====================
+let file = fileURLToPath(import.meta.url)
+watchFile(file, () => {
+  unwatchFile(file)
+  console.log(chalk.redBright("Update 'config.js'"))
+  import(`${file}?update=${Date.now()}`)
+})

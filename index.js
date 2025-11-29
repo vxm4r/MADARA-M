@@ -1,4 +1,4 @@
-import './settings.js'
+import './config.js'
 import { setupMaster, fork } from 'cluster'
 import { watchFile, unwatchFile } from 'fs'
 import cfonts from 'cfonts'
@@ -19,21 +19,26 @@ import pino from 'pino'
 import path, { join, dirname } from 'path'
 import { Boom } from '@hapi/boom'
 import { makeWASocket, protoType, serialize } from './lib/simple.js'
-import { Low, JSONFile } from 'lowdb'
+
+const { DisconnectReason, useMultiFileAuthState, MessageRetryMap, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, jidNormalizedUser } = await import('@whiskeysockets/baileys')
+import { Low } from 'lowdb'
+import { JSONFile } from 'lowdb/node'
 import store from './lib/store.js'
-import { DisconnectReason, useMultiFileAuthState, MessageRetryMap, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, jidNormalizedUser } from '@whiskeysockets/baileys'
+
 import readline, { createInterface } from 'readline'
 import NodeCache from 'node-cache'
-import { PhoneNumberUtil } from 'google-libphonenumber'
+import pkg from 'google-libphonenumber'
+const { PhoneNumberUtil } = pkg
+const phoneUtil = PhoneNumberUtil.getInstance()
 
 const { CONNECTING } = ws
 const { chain } = lodash
-const phoneUtil = PhoneNumberUtil.getInstance()
 
 // ============================================================
 // 1. الإعدادات العامة والمسارات
 // ============================================================
-const __dirname = global.__dirname(import.meta.url)
+
+
 const require = createRequire(import.meta.url)
 
 global.__filename = function filename(pathURL = import.meta.url, rmPrefix = platform !== 'win32') {
@@ -41,22 +46,23 @@ global.__filename = function filename(pathURL = import.meta.url, rmPrefix = plat
 }; 
 global.__dirname = function dirname(pathURL) {
     return path.dirname(global.__filename(pathURL, true))
-}; 
+};
 global.__require = function require(dir = import.meta.url) {
     return createRequire(dir)
 }
+const __dirname = global.__dirname(import.meta.url)
 
 protoType()
 serialize()
 
 global.timestamp = { start: new Date }
 global.opts = new Object(yargs(process.argv.slice(2)).exitProcess(false).parse())
-global.prefix = new RegExp('^[#/!.]')
+global.prefix = new RegExp('^[' + global.PREFIX.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&') + ']')
 
 // ============================================================
 // 2. نظام قاعدة البيانات (LowDB)
 // ============================================================
-global.db = new Low(new JSONFile(join(__dirname, 'database', 'database.json')))
+global.db = new Low(new JSONFile(join(__dirname, global.DATABASE_PATH)))
 global.DATABASE = global.db 
 
 global.loadDatabase = async function loadDatabase() {
@@ -75,9 +81,6 @@ global.loadDatabase = async function loadDatabase() {
     global.db.data = {
         users: {},
         chats: {},
-        stats: {},
-        msgs: {},
-        sticker: {},
         settings: {},
         ...(global.db.data || {}),
     }
@@ -100,10 +103,10 @@ async function isValidPhoneNumber(phoneNumber) {
 // ============================================================
 // 4. إعداد الاتصال الرئيسي
 // ============================================================
-const { state, saveCreds } = await useMultiFileAuthState(global.Rubysessions)
+const { state, saveCreds } = await useMultiFileAuthState(global.SESSION_NAME)
 const msgRetryCounterCache = new NodeCache()
 const { version } = await fetchLatestBaileysVersion();
-let phoneNumber = global.botNumber
+let phoneNumber = global.BOT_PHONE
 
 const methodCodeQR = process.argv.includes("qr")
 const methodCode = !!phoneNumber || process.argv.includes("code")
@@ -117,29 +120,30 @@ if (methodCodeQR) {
     opcion = '1'
 }
 
-if (!methodCodeQR && !methodCode && !fs.existsSync(`./${global.Rubysessions}/creds.json`)) {
+if (!methodCodeQR && !methodCode && !fs.existsSync(`./${global.SESSION_NAME}/creds.json`)) {
     do {
         opcion = await question(chalk.bgMagenta.white('⌨ Select an option:\n') + chalk.bold.green('1. With QR Code\n') + chalk.bold.cyan('2. With 8-digit text code\n--> '))
         if (!/^[1-2]$/.test(opcion)) {
             console.log(chalk.bold.redBright(`✦ Invalid option. Please enter 1 or 2.`))
         }
-    } while (opcion !== '1' && opcion !== '2' || fs.existsSync(`./${global.Rubysessions}/creds.json`))
+    } while (opcion !== '1' && opcion !== '2' || fs.existsSync(`./${global.SESSION_NAME}/creds.json`))
 } 
 
 console.info = () => {} 
 console.debug = () => {} 
 
 const connectionOptions = {
-    logger: pino({ level: 'silent' }),
+    logger: pino({ level: global.DEBUG_MODE ? 'debug' : 'silent' }),
     printQRInTerminal: opcion == '1' ? true : methodCodeQR ? true : false,
     mobile: MethodMobile, 
-    browser: opcion == '1' ? [`${global.nameqr}`, 'Edge', '20.0.04'] : methodCodeQR ? [`${global.nameqr}`, 'Edge', '20.0.04'] : ['Ubuntu', 'Edge', '110.0.1587.56'],
+    browser: [`${global.BOT_NAME}`, 'Edge', '20.0.04'],
     auth: {
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
     },
-    markOnlineOnConnect: true, 
-    generateHighQualityLinkPreview: true, 
+    markOnlineOnConnect: global.CONNECTION_OPTIONS.markOnlineOnConnect, 
+    generateHighQualityLinkPreview: global.CONNECTION_OPTIONS.generateHighQualityLinkPreview, 
+    syncFullHistory: global.CONNECTION_OPTIONS.syncFullHistory,
     getMessage: async (clave) => {
         let jid = jidNormalizedUser(clave.remoteJid)
         let msg = await store.loadMessage(jid, clave.id)
@@ -152,7 +156,7 @@ const connectionOptions = {
 
 global.conn = makeWASocket(connectionOptions);
 
-if (!fs.existsSync(`./${global.Rubysessions}/creds.json`)) {
+if (!fs.existsSync(`./${global.SESSION_NAME}/creds.json`)) {
     if (opcion === '2' || methodCode) {
         opcion = '2'
         if (!global.conn.authState.creds.registered) {
@@ -212,7 +216,7 @@ async function connectionUpdate(update) {
         if (code === DisconnectReason.loggedOut || code === 401) {
             console.log(chalk.red('❌ Logged out. Deleting session and restarting...'))
             try {
-                rmSync(`./${global.Rubysessions}`, { recursive: true, force: true })
+                rmSync(`./${global.SESSION_NAME}`, { recursive: true, force: true })
             } catch (e) {
                 console.error(chalk.red('❌ Failed to clean session directory:'), e.message);
             }
@@ -244,19 +248,15 @@ global.reloadHandler = async function (restatConn) {
         global.conn.isInit = true
     }
     
-    if (!global.conn.isInit) {
-        global.conn.ev.off("messages.upsert", global.conn.handler)
-        global.conn.ev.off("connection.update", global.conn.connectionUpdate)
-        global.conn.ev.off('creds.update', global.conn.credsUpdate)
-    }
+
     
-    global.conn.handler = handler.handler.bind(global.conn) // Adjusting to the new Handler class structure
+    global.conn.handler = handler.handler.bind(global.conn)
     global.conn.connectionUpdate = connectionUpdate.bind(global.conn)
     global.conn.credsUpdate = saveCreds.bind(global.conn, true)
     
     global.conn.ev.on("messages.upsert", global.conn.handler)
 
-    // معالجة رسائل الجلسات المتعددة
+    // معالجة رسائل الجلسات المتعددة (Jadibot)
     for (const conn of global.conns) {
         conn.ev.on("messages.upsert", conn.handler)
     }
@@ -274,11 +274,46 @@ global.reloadHandler = async function (restatConn) {
 }
 
 global.reloadHandler(false)
-updateJadibots()
+
+// ============================================================
+// 7. نظام الجلسات المتعددة (Jadibot)
+// ============================================================
+global.conns = [] // لتخزين اتصالات الجلسات المتعددة
+
+// ============================================================
+// 8. وظيفة التحقق من المطورين (محدثة)
+// ============================================================
+global.isOwner = (jid) => {
+    const ownerList = global.owner.map(v => v[0] + '@s.whatsapp.net');
+    return ownerList.includes(jid);
+}
+
+// ============================================================
+// 9. بدء التشغيل
+// ============================================================
+function start() {
+    cfonts.say('SOLO BOT', {
+        font: 'simple',
+        align: 'left',
+        gradient: ['#f12711', '#f5af19']
+    })
+    cfonts.say('Advanced WhatsApp Bot - Powered By KING', {
+        font: 'console',
+        align: 'center',
+        colors: ['cyan', 'magenta', 'yellow']
+    })
+    
+    // حفظ قاعدة البيانات كل فترة
+    if (!global.opts['test']) {
+        setInterval(async () => {
+            if (global.db.data) await global.db.write()
+        }, global.AUTO_SAVE_INTERVAL);
+    }
+}
+
+start()
 
 // Watch for changes in handler.js and plugins folder
-
-
 const pluginFolder = join(__dirname, 'plugins')
 const handlerFile = join(__dirname, 'handler.js')
 
@@ -286,7 +321,6 @@ watchFile(handlerFile, () => {
     unwatchFile(handlerFile)
     console.log(chalk.redBright(`\nUpdate: ${handlerFile}`))
     global.reloadHandler(false)
-updateJadibots()
 })
 
 function watchPlugins() {
@@ -297,38 +331,8 @@ function watchPlugins() {
             unwatchFile(filePath)
             console.log(chalk.redBright(`\nUpdate: ${filePath}`))
             global.reloadHandler(false)
-updateJadibots()
             watchPlugins() // Re-watch after reload
         })
     }
 }
 watchPlugins()
-
-// ============================================================
-// 7. نظام الجلسات المتعددة (Jadibot)
-// ============================================================
-global.conns = [] // لتخزين اتصالات الجلسات المتعددة
-
-// ============================================================
-// 8. وظيفة التحقق من المطورين
-// ============================================================
-global.isOwner = (jid) => {
-    const ownerList = global.owner.map(v => v[0] + '@s.whatsapp.net');
-    return ownerList.includes(jid);
-}
-
-// ============================================================
-// 8. بدء التشغيل
-// ============================================================
-function start() {
-    console.log(boxen(chalk.yellow('SOLO BOT - Advanced WhatsApp Bot'), { padding: 1, margin: 1, borderStyle: 'double' }))
-    
-    // حفظ قاعدة البيانات كل 30 ثانية
-    if (!global.opts['test']) {
-        setInterval(async () => {
-            if (global.db.data) await global.db.write()
-        }, 30 * 1000);
-    }
-}
-
-start()

@@ -1,7 +1,8 @@
 import { smsg, protoType } from './lib/simple.js'
 import { fileURLToPath } from 'url'
 import { watchFile, unwatchFile } from 'fs'
-import { Low, JSONFile } from 'lowdb'
+import { Low } from 'lowdb'
+import { JSONFile } from 'lowdb/node'
 import { join } from 'path'
 import chalk from 'chalk'
 import syntaxerror from 'syntax-error'
@@ -9,6 +10,7 @@ import { tmpdir } from 'os'
 import { format } from 'util'
 import { spawn } from 'child_process'
 import fs from 'fs'
+import printLog from './lib/print.js' // استيراد نظام المراقبة المتقدم
 
 const __dirname = global.__dirname(import.meta.url)
 
@@ -58,9 +60,14 @@ export async function handler(chatUpdate) {
         // تجاهل رسائل البوت ورسائل الحالة
         if (m_.isBot || m_.chat.endsWith('broadcast') || m_.key.remoteJid === 'status@broadcast') continue
         
-// ============================================================
-// 3. تحديث قاعدة البيانات (Users/Chats)
-// ============================================================
+        // ============================================================
+        // 3. نظام المراقبة المتقدم (Print Log)
+        // ============================================================
+        printLog(m_, this).catch(e => console.error(chalk.red('Error in printLog:'), e))
+
+        // ============================================================
+        // 4. تحديث قاعدة البيانات (Users/Chats)
+        // ============================================================
         let sender = m_.isGroup ? (m_.key.participant ? m_.key.participant : m_.sender) : m_.key.remoteJid;
         const isNumber = x => typeof x === 'number' && !isNaN(x)
         
@@ -71,85 +78,63 @@ export async function handler(chatUpdate) {
             let user = global.db.data.users[sender];
             if (typeof user !== 'object') global.db.data.users[sender] = {};
             if (user) {
+                // دمج جميع حقول المستخدم من الأكواد المرفقة
                 Object.assign(user, {
                     exp: isNumber(user.exp) ? user.exp : 0,
                     coin: isNumber(user.coin) ? user.coin : 10,
                     bank: isNumber(user.bank) ? user.bank : 0,
-                    joincount: isNumber(user.joincount) ? user.joincount : 1,
                     diamond: isNumber(user.diamond) ? user.diamond : 3,
-                    emerald: isNumber(user.emerald) ? user.emerald : 0, 
-                    iron: isNumber(user.iron) ? user.iron : 0, 
-                    gold: isNumber(user.gold) ? user.gold : 0, 
-                    coal: isNumber(user.coal) ? user.coal : 0, 
-                    stone: isNumber(user.stone) ? user.stone : 0, 
-                    candies: isNumber(user.candies) ? user.candies : 0, 
-                    gifts: isNumber(user.gifts) ? user.gifts : 0, 
-                    lastadventure: isNumber(user.lastadventure) ? user.lastadventure : 0,
-                    lastclaim: isNumber(user.lastclaim) ? user.lastclaim : 0,
+                    level: isNumber(user.level) ? user.level : 0,
                     health: isNumber(user.health) ? user.health : 100,
-                    crime: isNumber(user.crime) ? user.crime : 0,
-                    lastcofre: isNumber(user.lastcofre) ? user.lastcofre : 0,
-                    lastdiamantes: isNumber(user.lastdiamantes) ? user.lastdiamantes : 0,
-                    lastpago: isNumber(user.lastpago) ? user.lastpago : 0,
-                    lastcode: isNumber(user.lastcode) ? user.lastcode : 0,
-                    lastcodereg: isNumber(user.lastcodereg) ? user.lastcodereg : 0,
-                    lastduel: isNumber(user.lastduel) ? user.lastduel : 0,
+                    lastclaim: isNumber(user.lastclaim) ? user.lastclaim : 0,
+                    lastadventure: isNumber(user.lastadventure) ? user.lastadventure : 0,
                     lastmining: isNumber(user.lastmining) ? user.lastmining : 0,
-                    muto: 'muto' in user ? user.muto : false,
+                    lastduel: isNumber(user.lastduel) ? user.lastduel : 0,
+                    registered: 'registered' in user ? user.registered : false,
+                    name: user.name || m_.name,
+                    age: isNumber(user.age) ? user.age : -1,
+                    regTime: isNumber(user.regTime) ? user.regTime : -1,
+                    warn: isNumber(user.warn) ? user.warn : 0,
+                    banned: 'banned' in user ? user.banned : false,
                     premium: 'premium' in user ? user.premium : false,
                     premiumTime: user.premium ? user.premiumTime || 0 : 0,
-                    registered: 'registered' in user ? user.registered : false,
+                    role: user.role || 'Nuv',
+                    afk: isNumber(user.afk) ? user.afk : -1,
+                    afkReason: user.afkReason || '',
                     genre: user.genre || '',
                     birth: user.birth || '',
                     marry: user.marry || '',
                     description: user.description || '',
                     packstickers: user.packstickers || null,
-                    name: user.name || m_.name,
-                    age: isNumber(user.age) ? user.age : -1,
-                    regTime: isNumber(user.regTime) ? user.regTime : -1,
-                    afk: isNumber(user.afk) ? user.afk : -1,
-                    afkReason: user.afkReason || '',
-                    role: user.role || 'Nuv',
-                    banned: 'banned' in user ? user.banned : false,
+                    muto: 'muto' in user ? user.muto : false,
                     useDocument: 'useDocument' in user ? user.useDocument : false,
-                    level: isNumber(user.level) ? user.level : 0,
-                    warn: isNumber(user.warn) ? user.warn : 0,
-                    
-                    equipment: user.equipment || {
-                        weapon: 'none',
-                        armor: 'none',
-                        tool: 'none',
-                        weapon_durability: isNumber(user.equipment?.weapon_durability) ? user.equipment.weapon_durability : 0,
-                        armor_durability: isNumber(user.equipment?.armor_durability) ? user.equipment.armor_durability : 0,
-                    },
-                    inventory: user.inventory || {
-                        health_potion: 0,
-                        luck_potion: 0,
-                        escape_amulet: 0,
-                        lockpick: 0,
-                        mysterious_chest: 0,
-                    },
-                    materials: user.materials || {
-                        wood: 0,
-                        gem: 0,
-                        goblin_skin: 0,
-                        orc_bone: 0,
-                        slime_goo: 0,
-                        wolf_fur: 0,
-                        harpy_feather: 0,
-                        chitin_shell: 0,
-                        lich_phylactery: 0
-                    },
-                    status: user.status || {
-                        is_jailed: false,
-                        jailed_until: 0,
-                        is_lucky: false,
-                        lucky_until: 0,
-                    },
+                    chocolates: isNumber(user.chocolates) ? user.chocolates : 0, // من الكود المرفق 2
+                    usedcommands: isNumber(user.usedcommands) ? user.usedcommands : 0, // من الكود المرفق 2
+                    // إضافة حقول الاقتصاد المتقدمة من الكود المرفق 5
+                    berlian: isNumber(user.berlian) ? user.berlian : 10,
+                    emas: isNumber(user.emas) ? user.emas : 0,
+                    emasbatang: isNumber(user.emasbatang) ? user.emasbatang : 0,
+                    ruby: isNumber(user.ruby) ? user.ruby : 0,
+                    sword: isNumber(user.sword) ? user.sword : 0,
+                    sworddurability: isNumber(user.sworddurability) ? user.sworddurability : 0,
+                    armor: isNumber(user.armor) ? user.armor : 0,
+                    armordurability: isNumber(user.armordurability) ? user.armordurability : 0,
+                    pickaxe: isNumber(user.pickaxe) ? user.pickaxe : 0,
+                    pickaxedurability: isNumber(user.pickaxedurability) ? user.pickaxedurability : 0,
+                    lastfight: isNumber(user.lastfight) ? user.lastfight : 0,
+                    lastfishing: isNumber(user.lastfishing) ? user.lastfishing : 0,
+                    lasthunt: isNumber(user.lasthunt) ? user.lasthunt : 0,
+                    // دمج حقول المخزون والمعدات من الكود الأصلي
+                    equipment: user.equipment || { weapon: 'none', armor: 'none', tool: 'none', weapon_durability: 0, armor_durability: 0 },
+                    inventory: user.inventory || { health_potion: 0, luck_potion: 0, escape_amulet: 0, lockpick: 0, mysterious_chest: 0 },
+                    materials: user.materials || { wood: 0, gem: 0, goblin_skin: 0, orc_bone: 0, slime_goo: 0, wolf_fur: 0, harpy_feather: 0, chitin_shell: 0, lich_phylactery: 0 },
+                    status: user.status || { is_jailed: false, jailed_until: 0, is_lucky: false, lucky_until: 0 },
                 });
             } else {
+                // إنشاء مستخدم جديد بجميع الحقول الافتراضية
                 global.db.data.users[sender] = {
-                    exp: 0, coin: 10, bank: 0, joincount: 1, diamond: 3, emerald: 0, iron: 0, gold: 0, coal: 0, stone: 0, candies: 0, gifts: 0, lastadventure: 0, health: 100, lastclaim: 0, lastcofre: 0, lastdiamantes: 0, lastcode: 0, lastduel: 0, lastpago: 0, lastmining: 0, lastcodereg: 0, muto: false, registered: false, genre: '', birth: '', marry: '', description: '', packstickers: null, name: m_.name, age: -1, regTime: -1, afk: -1, afkReason: '', banned: false, useDocument: false, level: 0, role: 'Nuv', premium: false, premiumTime: 0, warn: 0,
+                    exp: 0, coin: 10, bank: 0, diamond: 3, level: 0, health: 100, lastclaim: 0, lastadventure: 0, lastmining: 0, lastduel: 0, registered: false, name: m_.name, age: -1, regTime: -1, warn: 0, banned: false, premium: false, premiumTime: 0, role: 'Nuv', afk: -1, afkReason: '', genre: '', birth: '', marry: '', description: '', packstickers: null, muto: false, useDocument: false, chocolates: 0, usedcommands: 0,
+                    berlian: 10, emas: 0, emasbatang: 0, ruby: 0, sword: 0, sworddurability: 0, armor: 0, armordurability: 0, pickaxe: 0, pickaxedurability: 0, lastfight: 0, lastfishing: 0, lasthunt: 0,
                     equipment: { weapon: 'none', armor: 'none', tool: 'none', weapon_durability: 0, armor_durability: 0 },
                     inventory: { health_potion: 0, luck_potion: 0, escape_amulet: 0, lockpick: 0, mysterious_chest: 0 },
                     materials: { wood: 0, gem: 0, goblin_skin: 0, orc_bone: 0, slime_goo: 0, wolf_fur: 0, harpy_feather: 0, chitin_shell: 0, lich_phylactery: 0 },
@@ -160,37 +145,36 @@ export async function handler(chatUpdate) {
             let chat = global.db.data.chats[m_.chat]
             if (typeof chat !== 'object') global.db.data.chats[m_.chat] = {}
             if (chat) {
+                // دمج جميع حقول الدردشة من الأكواد المرفقة
                 if (!('isBanned' in chat)) chat.isBanned = false
-                if (!('bannedBots' in chat)) chat.bannedBots = []
-                if (!('sAutoresponder' in chat)) chat.sAutoresponder = ''
-                if (!('welcome' in chat)) chat.welcome = true
-                if (!('welcomeText' in chat)) chat.welcomeText = null
-                if (!('byeText' in chat)) chat.byeText = null
-                if (!('autolevelup' in chat)) chat.autolevelup = false
-                if (!('autoAceptar' in chat)) chat.autoAceptar = false
-                if (!('autosticker' in chat)) chat.autosticker = false
-                if (!('autoRechazar' in chat)) chat.autoRechazar = false
-                if (!('autoresponder' in chat)) chat.autoresponder = false
+                if (!('welcome' in chat)) chat.welcome = global.FEATURES.WELCOME_MESSAGE
+                if (!('autolevelup' in chat)) chat.autolevelup = global.FEATURES.AUTO_LEVELUP
+                if (!('antiLink' in chat)) chat.antiLink = global.FEATURES.ANTI_LINK
+                if (!('reaction' in chat)) chat.reaction = global.FEATURES.REACTION_SYSTEM
+                if (!('nsfw' in chat)) chat.nsfw = false
                 if (!('detect' in chat)) chat.detect = true
-                if (!('audios' in chat)) chat.audios = false
+                if (!('adminonly' in chat)) chat.adminonly = false // من الكود المرفق 2
+                if (!('antilinks' in chat)) chat.antilinks = true // من الكود المرفق 2
+                if (!('bannedGrupo' in chat)) chat.bannedGrupo = false // من الكود المرفق 2
+                if (!('primaryBot' in chat)) chat.primaryBot = null // من الكود المرفق 2
                 if (!('antiBot' in chat)) chat.antiBot = false
                 if (!('antiBot2' in chat)) chat.antiBot2 = false
                 if (!('modoadmin' in chat)) chat.modoadmin = false
-                if (!('antiLink' in chat)) chat.antiLink = true
-                if (!('antiImg' in chat)) chat.antiImg = false
-                if (!('reaction' in chat)) chat.reaction = false
-                if (!('antiArabe' in chat)) chat.antiArabe = false
-                if (!('nsfw' in chat)) chat.nsfw = false
                 if (!('antifake' in chat)) chat.antifake = false
                 if (!('delete' in chat)) chat.delete = false
                 if (!isNumber(chat.expired)) chat.expired = 0
-                if (!('botPrimario' in chat)) chat.botPrimario = null
+                if (!('sWelcome' in chat)) chat.sWelcome = ''
+                if (!('sBye' in chat)) chat.sBye = ''
+                if (!('alerts' in chat)) chat.alerts = true
+                if (!('antiLag' in chat)) chat.antiLag = false // من الكود المرفق 5
+                if (!('antiTraba' in chat)) chat.antiTraba = true // من الكود المرفق 5
+                if (!('viewonce' in chat)) chat.viewonce = false // من الكود المرفق 5
+                if (!('antitoxic' in chat)) chat.antitoxic = true // من الكود المرفق 5
+                
             } else {
+                // إنشاء إعدادات دردشة جديدة بجميع الحقول الافتراضية
                 global.db.data.chats[m_.chat] = {
-                    sAutoresponder: '', welcome: true, isBanned: false, autolevelup: false, autoresponder: false, delete: false, autoAceptar: false, autoRechazar: false, detect: true, antiBot: false,
-                    antiBot2: false, modoadmin: false, antiLink: true, antifake: false, antiArabe: false, reaction: false, nsw: false, expired: 0,
-                    welcomeText: null, byeText: null, audios: false, botPrimario: null,
-                    bannedBots: []
+                    isBanned: false, welcome: global.FEATURES.WELCOME_MESSAGE, autolevelup: global.FEATURES.AUTO_LEVELUP, antiLink: global.FEATURES.ANTI_LINK, reaction: global.FEATURES.REACTION_SYSTEM, nsfw: false, detect: true, adminonly: false, antilinks: true, bannedGrupo: false, primaryBot: null, antiBot: false, antiBot2: false, modoadmin: false, antifake: false, delete: false, expired: 0, sWelcome: '', sBye: '', alerts: true, antiLag: false, antiTraba: true, viewonce: false, antitoxic: true
                 }
             }
             
@@ -203,155 +187,83 @@ export async function handler(chatUpdate) {
         }
         
         // ============================================================
-        // 4. معالجة الأوامر (Command Processing)
+        // 5. معالجة الأوامر (Command Processing)
         // ============================================================
         const isCmd = m_.text.startsWith(global.prefix)
         const command = isCmd ? m_.text.slice(global.prefix.length).trim().split(' ')[0].toLowerCase() : ''
         const text = m_.text.slice(global.prefix.length + command.length).trim()
         
         // ============================================================
-        // 4.1. نظام وضع المطورين (Developer Mode)
+        // 5.1. نظام وضع المطورين (Developer Mode)
         // ============================================================
         const isOwner = global.owner.map(v => v[0] + '@s.whatsapp.net').includes(m_.sender)
         
-        if (global.developerMode && !isOwner) {
+        if (global.DEVELOPER_MODE && !isOwner) {
             // إذا كان وضع المطورين مفعلاً والرسالة ليست من المطور، تجاهلها
             return
         }
         
         if (isCmd) {
             let plugin = null
-            for (let name in global.plugins) {
-                let module = await global.plugins[name]
-                if (module.default && module.default.command && module.default.command.includes(command)) {
-                    plugin = module.default
-                    break
+            // البحث عن الملحق المطابق
+            for (const name in global.plugins) {
+                const mod = await global.plugins[name]
+                if (mod.default && mod.default.command) {
+                    const commands = Array.isArray(mod.default.command) ? mod.default.command : [mod.default.command]
+                    if (commands.some(cmd => cmd === command)) {
+                        plugin = mod.default
+                        break
+                    }
                 }
             }
             
             if (plugin) {
                 try {
-                    // تحقق من الصلاحيات الموسع
-                    const groupMetadata = m_.isGroup ? await this.groupMetadata(m_.chat).catch(_ => null) : {}
-                    const participants = m_.isGroup ? groupMetadata.participants : []
-                    const userGroup = (m_.isGroup ? participants.find((u) => this.decodeJid(u.id) === m_.sender) : {}) || {}
-                    const botGroup = (m_.isGroup ? participants.find((u) => this.decodeJid(u.id) == this.user.jid) : {}) || {}
-                    
-                    const isRAdmin = userGroup?.admin == "superadmin" || false
-                    const isAdmin = isRAdmin || userGroup?.admin == "admin" || false
-                    const isBotAdmin = botGroup?.admin == "admin" || botGroup?.admin == "superadmin" || false
-                    
-                    const isPrems = isOwner || global.db.data.users[m_.sender].premium
-                    const isGroup = m_.isGroup
-                    
+                    // التحقق من الصلاحيات
                     if (plugin.owner && !isOwner) {
-                        m_.reply('هذا الأمر مخصص للمطور فقط.')
-                        continue
-                    }
-                    if (plugin.premium && !isPrems) {
-                        m_.reply('هذا الأمر مخصص للمستخدمين المميزين فقط.')
-                        continue
-                    }
-                    if (plugin.group && !isGroup) {
-                        m_.reply('هذا الأمر يعمل في المجموعات فقط.')
-                        continue
-                    }
-                    if (plugin.admin && !isAdmin) {
-                        m_.reply('هذا الأمر مخصص لمسؤولي المجموعة فقط.')
-                        continue
-                    }
-                    if (plugin.botAdmin && !isBotAdmin) {
-                        m_.reply('هذا الأمر يتطلب أن يكون البوت مسؤولاً في المجموعة.')
-                        continue
-                    }
-                    if (global.db.data.users[m_.sender].banned) {
-                        m_.reply('أنت محظور من استخدام البوت.')
+                        m_.reply('هذا الأمر مخصص للمطورين فقط.')
                         continue
                     }
                     
                     // تنفيذ الأمر
-                    await plugin.execute(this, m_, { command, text, isOwner, isPrems, isGroup, isAdmin, isBotAdmin })
+                    await plugin.handler.call(this, m_, {
+                        conn: this,
+                        command,
+                        text,
+                        args: text.split(' ').filter(v => v),
+                        isOwner,
+                        // إضافة المزيد من المتغيرات المساعدة هنا
+                    })
                     
-                    // تحديث الإحصائيات
-                    global.db.data.stats[command] = (global.db.data.stats[command] || 0) + 1
+                    // تحديث إحصائيات المستخدم
+                    if (user) {
+                        user.usedcommands = (user.usedcommands || 0) + 1
+                    }
                     
                 } catch (e) {
-                    console.error(chalk.red(`Error executing command ${command}:`), e)
-                    m_.reply(`حدث خطأ أثناء تنفيذ الأمر: \n${format(e)}`)
+                    console.error(chalk.red(`Error executing command ${command} in ${plugin.name}:`), e)
+                    m_.reply('حدث خطأ أثناء تنفيذ الأمر.')
                 }
-            } else if (isCmd) {
-                m_.reply(`الأمر *${command}* غير موجود.`)
+            } else {
+                // الأمر غير موجود
+                // m_.reply('عفواً، هذا الأمر غير موجود.')
             }
         }
-        
-        // ============================================================
-        // 5. معالجة الرسائل غير الأوامر (All Handler)
-        // ============================================================
-        
-        // تنفيذ وظيفة all لجميع الملحقات
-        for (let name in global.plugins) {
-            let module = await global.plugins[name]
-            if (module.default && typeof module.default.all === 'function') {
-                try {
-                    await module.default.all.call(this, m_, { isOwner, isPrems, isGroup, isAdmin, isBotAdmin })
-                } catch (e) {
-                    console.error(chalk.red(`Error executing all function in ${name}:`), e)
-                }
-            }
-        }
-        
-        // نظام AFK
-        if (global.db.data.users[m_.sender].afk > -1) {
-            m_.reply(`مرحباً بك مجدداً يا ${m_.sender.split('@')[0]}! لقد كنت في وضع AFK لمدة ${new Date() - global.db.data.users[m_.sender].afk}ms.`)
-            global.db.data.users[m_.sender].afk = -1
-            global.db.data.users[m_.sender].afkReason = ''
-        }
-        
-        if (m_.mentionedJid.length > 0) {
-            for (let jid of m_.mentionedJid) {
-                let user = global.db.data.users[jid]
-                if (user && user.afk > -1) {
-                    m_.reply(`المستخدم @${jid.split('@')[0]} في وضع AFK.\nالسبب: ${user.afkReason || 'لا يوجد سبب'}\nمنذ: ${new Date(user.afk).toLocaleString()}`)
-                }
-            }
-        }
-        
-        // نظام Anti-Link (يمكن نقله إلى ملف plugin/anti-link.js)
-        if (m_.isGroup && global.db.data.chats[m_.chat].antiLink && /(https?:\/\/[^\s]+)/g.test(m_.text)) {
-            // تحقق من صلاحيات البوت والمسؤولين
-            // إذا كان الرابط ليس من مسؤول المجموعة، قم بحذف الرسالة وإرسال تحذير
-        }
-        
-        // نظام Simi (يمكن نقله إلى ملف plugin/simi.js)
-        if (m_.isGroup && global.db.data.chats[m_.chat].simi && !isCmd) {
-            // تنفيذ وظيفة Simi
-        }
-        
-        // ============================================================
-        // 6. معالجة رسائل الجلسات المتعددة (Jadibot)
-        // ============================================================
-        // لا حاجة لـ Jadibot هنا، يتم التعامل معها في ملف jadibot-serbot.js
-        
     }
 }
-        
-// ============================================================
-// 7. وظيفة تحميل الملحقات (Plugins)
-// ============================================================
-global.reloadPlugins = async function () {
-    global.plugins = {}
-    readPlugins()
-}
 
 // ============================================================
-// 8. مراقبة ملفات الملحقات (Hot-Reloading)
+// 6. نظام المراقبة الحية (Hot-Reloading) للملحقات
 // ============================================================
 const pluginFolder = join(__dirname, 'plugins')
-if (!fs.existsSync(pluginFolder)) {
-    fs.mkdirSync(pluginFolder)
-}
+const handlerFile = join(__dirname, 'handler.js')
 
-// Watch for changes in plugins folder
+watchFile(handlerFile, () => {
+    unwatchFile(handlerFile)
+    console.log(chalk.redBright(`\nUpdate: ${handlerFile}`))
+    global.reloadHandler(false)
+})
+
 function watchPlugins() {
     const files = fs.readdirSync(pluginFolder)
     for (const file of files) {
@@ -359,19 +271,9 @@ function watchPlugins() {
         watchFile(filePath, () => {
             unwatchFile(filePath)
             console.log(chalk.redBright(`\nUpdate: ${filePath}`))
-            global.reloadPlugins()
+            global.reloadHandler(false)
             watchPlugins() // Re-watch after reload
         })
     }
 }
 watchPlugins()
-
-// ============================================================
-// 9. وظيفة التحقق من صلاحيات المسؤول (Placeholder)
-// ============================================================
-// تم نقل التحقق من الصلاحيات إلى داخل معالج الأوامر
-
-// ============================================================
-// 10. تصدير المعالج
-// ============================================================
-export { handler }

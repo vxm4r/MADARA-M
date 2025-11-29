@@ -1,1 +1,14 @@
-// ============================================================\n// 🏓 Ping Command - Example Advanced Plugin\n// ============================================================\n\nexport default {\n    command: 'ping',\n    aliases: ['p', 'latency'],\n    description: 'التحقق من سرعة الاتصال ومعلومات البوت',\n    category: 'General',\n    usage: '.ping',\n    permission: null, // لا توجد قيود\n    \n    async execute(message, args, bot) {\n        try {\n            const jid = message.key.remoteJid;\n            const startTime = Date.now();\n            \n            // الحصول على معلومات النظام\n            const systemInfo = bot.getSystemInfo();\n            const latency = Date.now() - startTime;\n            \n            // حساب الـ uptime\n            const uptime = systemInfo.uptime;\n            const days = Math.floor(uptime / (1000 * 60 * 60 * 24));\n            const hours = Math.floor((uptime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));\n            const minutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));\n            \n            const uptimeText = `${days}d ${hours}h ${minutes}m`;\n            \n            // إنشاء رسالة الرد\n            const responseText = `\n╭─── • 𝐒𝐎𝐋𝐎 • ───╮\n│ 🏓 *Ping Response*\n│ ⚡ Latency: ${latency}ms\n│ ⏱️ Uptime: ${uptimeText}\n│ 📊 Messages: ${systemInfo.messagesProcessed}\n│ 🎮 Commands: ${systemInfo.commandsLoaded}\n│ 👥 Users: ${systemInfo.usersTracked}\n│ 👫 Groups: ${systemInfo.groupsTracked}\n│ 🚫 Banned: ${systemInfo.bannedUsers}\n│ 😴 AFK: ${systemInfo.afkUsers}\n╰─── • 𝐒𝐎𝐋𝐎 • ───╯\n            `.trim();\n            \n            // إرسال الرسالة مع أزرار\n            await bot.messageHandler.sendButton(\n                jid,\n                responseText,\n                [\n                    { id: 'stats', text: '📊 الإحصائيات' },\n                    { id: 'help', text: '❓ المساعدة' },\n                    { id: 'about', text: 'ℹ️ عن البوت' }\n                ],\n                '𝐒𝐎𝐋𝐎 Bot',\n                { quoted: message }\n            );\n            \n        } catch (error) {\n            console.error('Error in ping command:', error);\n            await bot.messageHandler.reply(message, `❌ حدث خطأ: ${error.message}`);\n        }\n    }\n};\n
+export default {
+    command: ["ping", "بنج", "سرعة"],
+    name: "Ping",
+    category: "General",
+    owner: false,
+    handler: async function (m, { conn }) {
+        const startTime = Date.now()
+        const sentMsg = await conn.sendMessage(m.chat, { text: "جاري الاختبار..." }, { quoted: m })
+        const endTime = Date.now()
+        const latency = endTime - startTime
+        
+        await conn.sendMessage(m.chat, { text: `✅ الرد: ${latency} مللي ثانية` }, { quoted: sentMsg })
+    }
+}
