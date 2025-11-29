@@ -30,6 +30,10 @@ global.DEVELOPER_MODE = false // true: البوت يرد على المطورين
 
 // ==================== إعدادات قاعدة البيانات ====================
 global.DATABASE_PATH = './data/database.json'
+
+// ==================== إعدادات الرد التلقائي ====================
+global.AUTO_REPLY_DM = process.env.AUTO_REPLY_DM === 'true' // الرد التلقائي في الخاص
+global.AUTO_REPLY_MENTION = process.env.AUTO_REPLY_MENTION === 'true' // الرد التلقائي عند الإشارة في المجموعات
 global.AUTO_SAVE_INTERVAL = 30000 // 30 ثانية
 
 // ==================== إعدادات الأمان والميزات ====================
