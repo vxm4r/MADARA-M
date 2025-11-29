@@ -1,1 +1,310 @@
-// ============================================================\n// 🤖 𝐒𝐎𝐋𝐎 Bot - Advanced WhatsApp Bot\n// ============================================================\n\nimport { makeWASocket, useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore, Browsers } from '@whiskeysockets/baileys';\nimport pino from 'pino';\nimport fs from 'fs-extra';\nimport readline from 'readline';\nimport path from 'path';\nimport chalk from 'chalk';\nimport gradient from 'gradient-string';\nimport { config } from './config.js';\nimport { Handler } from './systems/handler.js';\nimport { EconomySystem } from './systems/economy.js';\nimport { GroupManager } from './systems/groupManager.js';\nimport { AFKSystem } from './systems/afkSystem.js';\nimport { BanSystem } from './systems/banSystem.js';\nimport { CommandManager } from './systems/commandManager.js';\nimport { SimpleMessage } from './lib/simple.js';\n\nconst logger = pino({ level: 'silent' });\n\nclass SOLOBot {\n    constructor() {\n        this.sock = null;\n        this.authState = null;\n        this.saveCreds = null;\n        this.isConnected = false;\n        this.startTime = Date.now();\n        this.connectionRetries = 0;\n        this.maxRetries = config.MAX_RETRIES;\n        this.config = config;\n        this.handler = null;\n        this.economy = null;\n        this.groupManager = null;\n        this.afkSystem = null;\n        this.banSystem = null;\n        this.commandManager = null;\n        this.messageHandler = null;\n        \n        global.bot = this;\n    }\n\n    /**\n     * تهيئة البوت\n     */\n    async initialize() {\n        try {\n            console.clear();\n            this.showBanner();\n            this.createDirectories();\n            await this.initializeAuth();\n            this.startConnection();\n        } catch (error) {\n            console.log(chalk.red('❌ Initial setup failed:'), error.message);\n            await this.handleReconnection();\n        }\n    }\n\n    /**\n     * عرض البانر الترحيبي\n     */\n    showBanner() {\n        console.log(gradient.rainbow(`\n╔══════════════════════════════════════════════════╗\n║            𝐒𝐎𝐋𝐎 BOT SYSTEM v2.0                 ║\n║         Advanced WhatsApp Bot                    ║\n║              Developed by KING                   ║\n║            +201005199558                         ║\n╚══════════════════════════════════════════════════╝\n        `));\n        console.log(chalk.cyan('🚀 Starting advanced WhatsApp bot...\\n'));\n    }\n\n    /**\n     * إنشاء المجلدات الأساسية\n     */\n    createDirectories() {\n        const dirs = [\n            config.SESSION_PATH,\n            './plugins',\n            './data',\n            './temp'\n        ];\n        dirs.forEach(dir => fs.ensureDirSync(dir));\n    }\n\n    /**\n     * تهيئة نظام المصادقة\n     */\n    async initializeAuth() {\n        try {\n            const { state, saveCreds } = await useMultiFileAuthState(config.SESSION_PATH);\n            this.authState = state;\n            this.saveCreds = saveCreds;\n            console.log(chalk.green('✅ Auth system initialized'));\n        } catch (error) {\n            console.log(chalk.red('❌ Auth initialization failed:'), error.message);\n            throw error;\n        }\n    }\n\n    /**\n     * بدء الاتصال بـ WhatsApp\n     */\n    async startConnection() {\n        try {\n            this.sock = makeWASocket({\n                auth: {\n                    creds: this.authState.creds,\n                    keys: makeCacheableSignalKeyStore(this.authState.keys, logger),\n                },\n                logger: logger,\n                printQRInTerminal: false,\n                browser: Browsers.ubuntu('Chrome'),\n                markOnlineOnConnect: true,\n                generateHighQualityLinkPreview: true,\n                syncFullHistory: false,\n                retryRequestDelayMs: 1000,\n                maxRetries: 3,\n            });\n\n            this.setupEventHandlers();\n\n            if (this.authState.creds.registered) {\n                await this.waitForConnection();\n            } else {\n                await this.startPhoneAuth();\n            }\n        } catch (error) {\n            console.log(chalk.red('❌ Connection failed:'), error.message);\n            throw error;\n        }\n    }\n\n    /**\n     * انتظار الاتصال\n     */\n    async waitForConnection() {\n        return new Promise((resolve) => {\n            const connectionHandler = (update) => {\n                if (update.connection === 'open') {\n                    this.sock.ev.off('connection.update', connectionHandler);\n                    resolve();\n                }\n            };\n            this.sock.ev.on('connection.update', connectionHandler);\n        });\n    }\n\n    /**\n     * بدء المصادقة عبر الهاتف\n     */\n    async startPhoneAuth() {\n        const rl = readline.createInterface({\n            input: process.stdin,\n            output: process.stdout\n        });\n\n        try {\n            const phoneNumber = await new Promise((resolve) => {\n                rl.question(chalk.cyan('📱 Enter phone number (with country code): '), resolve);\n            });\n\n            if (!phoneNumber) {\n                console.log(chalk.red('❌ Phone number required'));\n                process.exit(1);\n            }\n\n            const cleanNumber = phoneNumber.replace(/[+\\s]/g, '');\n            console.log(chalk.cyan('⏳ Requesting pairing code...'));\n            \n            const code = await this.sock.requestPairingCode(cleanNumber);\n            \n            console.log(chalk.cyan('╔══════════════════════════════════╗'));\n            console.log(chalk.cyan('║         📱 PAIRING CODE         ║'));\n            console.log(chalk.cyan('╚══════════════════════════════════╝'));\n            console.log(chalk.bold.greenBright(`\\n          \n╭─── • 𝐒𝐎𝐋𝐎 • ───╮\n│≠ 𝑪𝑶𝑫𝑬: ${code}\n│≠ 𝑺𝑶𝑳𝑶.. \n╰─── • 𝐒𝐎𝐋𝐎 • ───\n\\n`));\n            \n            console.log(chalk.cyan('⏳ Waiting for pairing... (2 minutes)'));\n            \n            await this.waitForConnection();\n            \n            rl.close();\n            console.log(chalk.green('✅ Paired successfully!'));\n        } catch (error) {\n            console.log(chalk.red('❌ Phone auth failed:'), error.message);\n            rl.close();\n            throw error;\n        }\n    }\n\n    /**\n     * إعداد معالجات الأحداث\n     */\n    setupEventHandlers() {\n        this.sock.ev.on('connection.update', (update) => {\n            this.handleConnectionUpdate(update);\n        });\n\n        this.sock.ev.on('messages.upsert', (m) => {\n            this.handleMessagesUpsert(m);\n        });\n\n        this.sock.ev.on('creds.update', () => {\n            if (this.saveCreds) {\n                this.saveCreds();\n            }\n        });\n    }\n\n    /**\n     * معالجة تحديثات الاتصال\n     */\n    async handleConnectionUpdate(update) {\n        const { connection, lastDisconnect } = update;\n        \n        if (connection === 'open') {\n            this.isConnected = true;\n            this.connectionRetries = 0;\n            console.log(chalk.green('✅ Connected to WhatsApp!'));\n            \n            if (!this.handler) {\n                console.log(chalk.cyan('🚀 First connection, loading all systems...'));\n                await this.loadSystems();\n                console.log(chalk.green('🎉 𝐒𝐎𝐋𝐎 Bot is now fully operational!'));\n            }\n            \n            if (this.saveCreds) {\n                this.saveCreds();\n            }\n        } else if (connection === 'close') {\n            this.isConnected = false;\n            const statusCode = lastDisconnect?.error?.output?.statusCode;\n            \n            const isCriticalError = statusCode === DisconnectReason.loggedOut || \n                                    statusCode === DisconnectReason.connectionReplaced;\n\n            if (isCriticalError) {\n                console.log(chalk.red('❌ Critical session issue detected. Restarting from scratch...'));\n                try {\n                    fs.rmSync(config.SESSION_PATH, { recursive: true, force: true });\n                } catch (e) {\n                    console.error(chalk.red('❌ Failed to clean session directory:'), e.message);\n                }\n                process.exit(1);\n            } else {\n                this.startConnection();\n            }\n        }\n    }\n\n    /**\n     * معالجة الرسائل الواردة\n     */\n    async handleMessagesUpsert(m) {\n        try {\n            const message = m.messages[0];\n            if (!message || !message.message || message.key.remoteJid === 'status@broadcast') return;\n            \n            const messageTime = message.messageTimestamp ? message.messageTimestamp * 1000 : Date.now();\n            if (messageTime < this.startTime - 10000) {\n                return;\n            }\n\n            if (this.handler) {\n                await this.handler.handleMessage(message);\n            }\n        } catch (error) {\n            console.log(chalk.red('❌ Message handling error:'), error.message);\n        }\n    }\n\n    /**\n     * تحميل جميع الأنظمة\n     */\n    async loadSystems() {\n        try {\n            // تحميل معالج الأوامر الأساسي\n            this.handler = new Handler(this);\n            await this.handler.loadPlugins();\n            \n            // تحميل نظام الاقتصاد\n            this.economy = new EconomySystem();\n            this.economy.setSock(this.sock);\n            await this.economy.initialize();\n            \n            // تحميل نظام إدارة المجموعات\n            this.groupManager = new GroupManager();\n            this.groupManager.setSock(this.sock);\n            await this.groupManager.initialize();\n            \n            // تحميل نظام AFK\n            this.afkSystem = new AFKSystem();\n            this.afkSystem.setSock(this.sock);\n            await this.afkSystem.initialize();\n            \n            // تحميل نظام الحظر\n            this.banSystem = new BanSystem();\n            this.banSystem.setSock(this.sock);\n            await this.banSystem.initialize();\n            \n            // تحميل مدير الأوامر المتقدم\n            this.commandManager = new CommandManager();\n            await this.commandManager.loadCommands();\n            \n            // تحميل معالج الرسائل المتقدم\n            this.messageHandler = new SimpleMessage(this.sock);\n            \n            // حفظ دوري للبيانات\n            setInterval(async () => {\n                await this.economy.saveData();\n                await this.groupManager.saveData();\n                await this.afkSystem.saveData();\n                await this.banSystem.saveData();\n                this.handler.saveData();\n            }, config.AUTO_SAVE_INTERVAL);\n            \n            // تنظيف دوري\n            setInterval(() => {\n                this.banSystem.cleanExpiredBans();\n                this.afkSystem.cleanOldAFKData();\n            }, 3600000); // كل ساعة\n            \n            console.log(chalk.green('✅ All systems loaded successfully'));\n        } catch (error) {\n            console.log(chalk.red('❌ System loading failed:'), error.message);\n        }\n    }\n\n    /**\n     * معالجة إعادة الاتصال\n     */\n    async handleReconnection() {\n        this.connectionRetries++;\n        if (this.connectionRetries > this.maxRetries) {\n            console.log(chalk.red('❌ Max reconnection attempts reached'));\n            process.exit(1);\n        }\n\n        console.log(chalk.yellow(`🔄 Reconnection attempt ${this.connectionRetries}/${this.maxRetries}`));\n        await new Promise(resolve => setTimeout(resolve, 3000));\n        await this.initialize();\n    }\n\n    /**\n     * إرسال رسالة\n     */\n    async sendMessage(jid, content, options = {}) {\n        try {\n            return await this.sock.sendMessage(jid, content, options);\n        } catch (error) {\n            console.log(chalk.red('❌ Send message error:'), error.message);\n        }\n    }\n\n    /**\n     * الحصول على معلومات النظام\n     */\n    getSystemInfo() {\n        return {\n            botName: '𝐒𝐎𝐋𝐎',\n            version: config.BOT_VERSION,\n            uptime: Date.now() - this.startTime,\n            connected: this.isConnected,\n            connectionRetries: this.connectionRetries,\n            messagesProcessed: this.handler?.stats?.messagesProcessed || 0,\n            commandsLoaded: this.commandManager?.commands?.size || 0,\n            usersTracked: this.handler?.userData?.size || 0,\n            groupsTracked: this.handler?.groupData?.size || 0,\n            bannedUsers: this.banSystem?.bannedUsers?.size || 0,\n            afkUsers: this.afkSystem?.afkUsers?.size || 0\n        };\n    }\n}\n\n/**\n * نقطة الدخول الرئيسية\n */\nasync function main() {\n    const bot = new SOLOBot();\n    try {\n        await bot.initialize();\n    } catch (error) {\n        console.error(chalk.red('❌ A critical error occurred during bot initialization:'), error);\n        process.exit(1);\n    }\n}\n\nmain();\n\n/**\n * معالجة إشارات الإيقاف\n */\nprocess.on('SIGINT', () => {\n    console.log(chalk.yellow('\\n🛑 Shutting down 𝐒𝐎𝐋𝐎 Bot...'));\n    process.exit(0);\n});\n\nprocess.on('SIGTERM', () => {\n    console.log(chalk.yellow('\\n🛑 𝐒𝐎𝐋𝐎 Bot terminated'));\n    process.exit(0);\n});\n\nexport default SOLOBot;\n
+import './settings.js'
+import { setupMaster, fork } from 'cluster'
+import { watchFile, unwatchFile } from 'fs'
+import cfonts from 'cfonts'
+import { createRequire } from 'module'
+import { fileURLToPath, pathToFileURL } from 'url'
+import { platform } from 'process'
+import * as ws from 'ws'
+import fs, { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import yargs from 'yargs'
+import { spawn } from 'child_process'
+import lodash from 'lodash'
+import chalk from 'chalk'
+import syntaxerror from 'syntax-error'
+import { tmpdir } from 'os'
+import { format } from 'util'
+import boxen from 'boxen'
+import pino from 'pino'
+import path, { join, dirname } from 'path'
+import { Boom } from '@hapi/boom'
+import { makeWASocket, protoType, serialize } from './lib/simple.js'
+import { Low, JSONFile } from 'lowdb'
+import store from './lib/store.js'
+import { DisconnectReason, useMultiFileAuthState, MessageRetryMap, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, jidNormalizedUser } from '@whiskeysockets/baileys'
+import readline, { createInterface } from 'readline'
+import NodeCache from 'node-cache'
+import { PhoneNumberUtil } from 'google-libphonenumber'
+
+const { CONNECTING } = ws
+const { chain } = lodash
+const phoneUtil = PhoneNumberUtil.getInstance()
+
+// ============================================================
+// 1. الإعدادات العامة والمسارات
+// ============================================================
+const __dirname = global.__dirname(import.meta.url)
+const require = createRequire(import.meta.url)
+
+global.__filename = function filename(pathURL = import.meta.url, rmPrefix = platform !== 'win32') {
+    return rmPrefix ? /file:\/\/\//.test(pathURL) ? fileURLToPath(pathURL) : pathURL : pathToFileURL(pathURL).toString();
+}; 
+global.__dirname = function dirname(pathURL) {
+    return path.dirname(global.__filename(pathURL, true))
+}; 
+global.__require = function require(dir = import.meta.url) {
+    return createRequire(dir)
+}
+
+protoType()
+serialize()
+
+global.timestamp = { start: new Date }
+global.opts = new Object(yargs(process.argv.slice(2)).exitProcess(false).parse())
+global.prefix = new RegExp('^[#/!.]')
+
+// ============================================================
+// 2. نظام قاعدة البيانات (LowDB)
+// ============================================================
+global.db = new Low(new JSONFile(join(__dirname, 'database', 'database.json')))
+global.DATABASE = global.db 
+
+global.loadDatabase = async function loadDatabase() {
+    if (global.db.READ) {
+        return new Promise((resolve) => setInterval(async function() {
+            if (!global.db.READ) {
+                clearInterval(this)
+                resolve(global.db.data == null ? global.loadDatabase() : global.db.data);
+            }
+        }, 1 * 1000))
+    }
+    if (global.db.data !== null) return
+    global.db.READ = true
+    await global.db.read().catch(console.error)
+    global.db.READ = null
+    global.db.data = {
+        users: {},
+        chats: {},
+        stats: {},
+        msgs: {},
+        sticker: {},
+        settings: {},
+        ...(global.db.data || {}),
+    }
+    global.db.chain = chain(global.db.data)
+}
+loadDatabase()
+
+// ============================================================
+// 3. وظيفة التحقق من رقم الهاتف
+// ============================================================
+async function isValidPhoneNumber(phoneNumber) {
+    try {
+        const number = phoneUtil.parseAndKeepRawInput(phoneNumber);
+        return phoneUtil.isValidNumber(number);
+    } catch (e) {
+        return false;
+    }
+}
+
+// ============================================================
+// 4. إعداد الاتصال الرئيسي
+// ============================================================
+const { state, saveCreds } = await useMultiFileAuthState(global.Rubysessions)
+const msgRetryCounterCache = new NodeCache()
+const { version } = await fetchLatestBaileysVersion();
+let phoneNumber = global.botNumber
+
+const methodCodeQR = process.argv.includes("qr")
+const methodCode = !!phoneNumber || process.argv.includes("code")
+const MethodMobile = process.argv.includes("mobile")
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+const question = (texto) => new Promise((resolver) => rl.question(texto, resolver))
+
+let opcion
+if (methodCodeQR) {
+    opcion = '1'
+}
+
+if (!methodCodeQR && !methodCode && !fs.existsSync(`./${global.Rubysessions}/creds.json`)) {
+    do {
+        opcion = await question(chalk.bgMagenta.white('⌨ Select an option:\n') + chalk.bold.green('1. With QR Code\n') + chalk.bold.cyan('2. With 8-digit text code\n--> '))
+        if (!/^[1-2]$/.test(opcion)) {
+            console.log(chalk.bold.redBright(`✦ Invalid option. Please enter 1 or 2.`))
+        }
+    } while (opcion !== '1' && opcion !== '2' || fs.existsSync(`./${global.Rubysessions}/creds.json`))
+} 
+
+console.info = () => {} 
+console.debug = () => {} 
+
+const connectionOptions = {
+    logger: pino({ level: 'silent' }),
+    printQRInTerminal: opcion == '1' ? true : methodCodeQR ? true : false,
+    mobile: MethodMobile, 
+    browser: opcion == '1' ? [`${global.nameqr}`, 'Edge', '20.0.04'] : methodCodeQR ? [`${global.nameqr}`, 'Edge', '20.0.04'] : ['Ubuntu', 'Edge', '110.0.1587.56'],
+    auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
+    },
+    markOnlineOnConnect: true, 
+    generateHighQualityLinkPreview: true, 
+    getMessage: async (clave) => {
+        let jid = jidNormalizedUser(clave.remoteJid)
+        let msg = await store.loadMessage(jid, clave.id)
+        return msg?.message || ""
+    },
+    msgRetryCounterCache,
+    defaultQueryTimeoutMs: undefined,
+    version,
+}
+
+global.conn = makeWASocket(connectionOptions);
+
+if (!fs.existsSync(`./${global.Rubysessions}/creds.json`)) {
+    if (opcion === '2' || methodCode) {
+        opcion = '2'
+        if (!global.conn.authState.creds.registered) {
+            let addNumber
+            if (!!phoneNumber) {
+                addNumber = phoneNumber.replace(/[^0-9]/g, '')
+            } else {
+                do {
+                    phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(`✦ Please enter WhatsApp number.\n${chalk.bold.yellowBright(`✏  Example: 201005199558`)}\n${chalk.bold.magentaBright('---> ')}`)))
+                    phoneNumber = phoneNumber.replace(/\D/g,'')
+                    if (!phoneNumber.startsWith('+')) {
+                        phoneNumber = `+${phoneNumber}`
+                    }
+                } while (!await isValidPhoneNumber(phoneNumber))
+                rl.close()
+                addNumber = phoneNumber.replace(/\D/g, '')
+                setTimeout(async () => {
+                    let codeBot = await global.conn.requestPairingCode(addNumber)
+                    codeBot = codeBot?.match(/.{1,4}/g)?.join("-") || codeBot
+                    console.log(chalk.bold.white(chalk.bgMagenta(`✧ PAIRING CODE ✧`)), chalk.bold.white(chalk.white(codeBot)))
+                }, 3000)
+            }
+        }
+    }
+}
+
+global.conn.isInit = false;
+global.conn.well = false;
+
+// ============================================================
+// 5. وظيفة تحديث الاتصال
+// ============================================================
+async function connectionUpdate(update) {
+    const { connection, lastDisconnect, isNewLogin } = update;
+    global.stopped = connection;
+    if (isNewLogin) global.conn.isInit = true;
+    const code = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.output?.payload?.statusCode;
+    
+    if (code && code !== DisconnectReason.loggedOut && global.conn?.ws.socket == null) {
+        await global.reloadHandler(true).catch(console.error);
+        global.timestamp.connect = new Date;
+    }
+    
+    if (global.db.data == null) loadDatabase();
+    
+    if (update.qr != 0 && update.qr != undefined || methodCodeQR) {
+        if (opcion == '1' || methodCodeQR) {
+            console.log(chalk.bold.yellow(`\n❐ SCAN THE QR CODE, IT EXPIRES IN 45 SECONDS`))
+        }
+    }
+    
+    if (connection === 'open') {
+        console.log(chalk.green('✅ Connection opened successfully!'))
+    }
+    
+    if (connection === 'close') {
+        if (code === DisconnectReason.loggedOut || code === 401) {
+            console.log(chalk.red('❌ Logged out. Deleting session and restarting...'))
+            try {
+                rmSync(`./${global.Rubysessions}`, { recursive: true, force: true })
+            } catch (e) {
+                console.error(chalk.red('❌ Failed to clean session directory:'), e.message);
+            }
+            process.exit(1)
+        } else {
+            console.log(chalk.yellow(`🔄 Connection closed. Reason: ${code}. Reconnecting...`))
+            await global.reloadHandler(true).catch(console.error)
+        }
+    }
+}
+
+// ============================================================
+// 6. نظام المراقبة الحية (Hot-Reloading)
+// ============================================================
+let handler = await import('./handler.js')
+global.reloadHandler = async function (restatConn) {
+    try {
+        const Handler = await import(`./handler.js?update=${Date.now()}`).catch(console.error)
+        if (Object.keys(Handler || {}).length) handler = Handler
+    } catch (e) {
+        console.error('⚠️ New error: ', e)
+    }
+    
+    if (restatConn) {
+        const oldChats = global.conn.chats
+        try { global.conn.ws.close() } catch { }
+        global.conn.ev.removeAllListeners()
+        global.conn = makeWASocket(connectionOptions, { chats: oldChats })
+        global.conn.isInit = true
+    }
+    
+    if (!global.conn.isInit) {
+        global.conn.ev.off("messages.upsert", global.conn.handler)
+        global.conn.ev.off("connection.update", global.conn.connectionUpdate)
+        global.conn.ev.off('creds.update', global.conn.credsUpdate)
+    }
+    
+    global.conn.handler = handler.handler.bind(global.conn) // Adjusting to the new Handler class structure
+    global.conn.connectionUpdate = connectionUpdate.bind(global.conn)
+    global.conn.credsUpdate = saveCreds.bind(global.conn, true)
+    
+    global.conn.ev.on("messages.upsert", global.conn.handler)
+    global.conn.ev.on("connection.update", global.conn.connectionUpdate)
+    global.conn.ev.on("creds.update", global.conn.credsUpdate)
+    
+    global.conn.isInit = false
+    return true
+}
+
+global.reloadHandler(false)
+
+// Watch for changes in handler.js and plugins folder
+const pluginFolder = join(__dirname, 'plugins')
+const handlerFile = join(__dirname, 'handler.js')
+
+watchFile(handlerFile, () => {
+    unwatchFile(handlerFile)
+    console.log(chalk.redBright(`\nUpdate: ${handlerFile}`))
+    global.reloadHandler(false)
+})
+
+function watchPlugins() {
+    const files = fs.readdirSync(pluginFolder)
+    for (const file of files) {
+        const filePath = join(pluginFolder, file)
+        watchFile(filePath, () => {
+            unwatchFile(filePath)
+            console.log(chalk.redBright(`\nUpdate: ${filePath}`))
+            global.reloadHandler(false)
+            watchPlugins() // Re-watch after reload
+        })
+    }
+}
+watchPlugins()
+
+// ============================================================
+// 7. نظام الجلسات المتعددة (Jadibot)
+// ============================================================
+global.conns = [] // لتخزين اتصالات الجلسات المتعددة
+
+// ============================================================
+// 8. بدء التشغيل
+// ============================================================
+function start() {
+    console.log(boxen(chalk.yellow('SOLO BOT - Advanced WhatsApp Bot'), { padding: 1, margin: 1, borderStyle: 'double' }))
+    
+    // حفظ قاعدة البيانات كل 30 ثانية
+    if (!global.opts['test']) {
+        setInterval(async () => {
+            if (global.db.data) await global.db.write()
+        }, 30 * 1000);
+    }
+}
+
+start()
