@@ -255,16 +255,30 @@ global.reloadHandler = async function (restatConn) {
     global.conn.credsUpdate = saveCreds.bind(global.conn, true)
     
     global.conn.ev.on("messages.upsert", global.conn.handler)
+
+    // معالجة رسائل الجلسات المتعددة
+    for (const conn of global.conns) {
+        conn.ev.on("messages.upsert", conn.handler)
+    }
     global.conn.ev.on("connection.update", global.conn.connectionUpdate)
     global.conn.ev.on("creds.update", global.conn.credsUpdate)
+
+    // تحديث بيانات الجلسات المتعددة
+    for (const conn of global.conns) {
+        conn.ev.on("connection.update", conn.connectionUpdate)
+        conn.ev.on("creds.update", conn.credsUpdate)
+    }
     
     global.conn.isInit = false
     return true
 }
 
 global.reloadHandler(false)
+updateJadibots()
 
 // Watch for changes in handler.js and plugins folder
+
+
 const pluginFolder = join(__dirname, 'plugins')
 const handlerFile = join(__dirname, 'handler.js')
 
@@ -272,6 +286,7 @@ watchFile(handlerFile, () => {
     unwatchFile(handlerFile)
     console.log(chalk.redBright(`\nUpdate: ${handlerFile}`))
     global.reloadHandler(false)
+updateJadibots()
 })
 
 function watchPlugins() {
@@ -282,6 +297,7 @@ function watchPlugins() {
             unwatchFile(filePath)
             console.log(chalk.redBright(`\nUpdate: ${filePath}`))
             global.reloadHandler(false)
+updateJadibots()
             watchPlugins() // Re-watch after reload
         })
     }
@@ -292,6 +308,14 @@ watchPlugins()
 // 7. نظام الجلسات المتعددة (Jadibot)
 // ============================================================
 global.conns = [] // لتخزين اتصالات الجلسات المتعددة
+
+// ============================================================
+// 8. وظيفة التحقق من المطورين
+// ============================================================
+global.isOwner = (jid) => {
+    const ownerList = global.owner.map(v => v[0] + '@s.whatsapp.net');
+    return ownerList.includes(jid);
+}
 
 // ============================================================
 // 8. بدء التشغيل

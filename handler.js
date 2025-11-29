@@ -58,69 +58,139 @@ export async function handler(chatUpdate) {
         // تجاهل رسائل البوت ورسائل الحالة
         if (m_.isBot || m_.chat.endsWith('broadcast') || m_.key.remoteJid === 'status@broadcast') continue
         
-        // ============================================================
-        // 3. تحديث قاعدة البيانات (Users/Chats)
-        // ============================================================
+// ============================================================
+// 3. تحديث قاعدة البيانات (Users/Chats)
+// ============================================================
+        let sender = m_.isGroup ? (m_.key.participant ? m_.key.participant : m_.sender) : m_.key.remoteJid;
+        const isNumber = x => typeof x === 'number' && !isNaN(x)
+        
         try {
-            let user = global.db.data.users[m_.sender]
-            if (typeof user !== 'object') global.db.data.users[m_.sender] = {}
+            m_.exp = 0
+            m_.coin = false
+            
+            let user = global.db.data.users[sender];
+            if (typeof user !== 'object') global.db.data.users[sender] = {};
             if (user) {
-                if (!('registered' in user)) user.registered = false
-                if (!('limit' in user)) user.limit = 20
-                if (!('money' in user)) user.money = 0
-                if (!('exp' in user)) user.exp = 0
-                if (!('level' in user)) user.level = 0
-                if (!('role' in user)) user.role = 'Beginner'
-                if (!('lastclaim' in user)) user.lastclaim = 0
-                if (!('afk' in user)) user.afk = -1
-                if (!('afkReason' in user)) user.afkReason = ''
-                if (!('banned' in user)) user.banned = false
-                if (!('premium' in user)) user.premium = false
-                if (!('premiumDate' in user)) user.premiumDate = 0
-                if (!('warn' in user)) user.warn = 0
-                // Add more user properties from the analyzed code
+                Object.assign(user, {
+                    exp: isNumber(user.exp) ? user.exp : 0,
+                    coin: isNumber(user.coin) ? user.coin : 10,
+                    bank: isNumber(user.bank) ? user.bank : 0,
+                    joincount: isNumber(user.joincount) ? user.joincount : 1,
+                    diamond: isNumber(user.diamond) ? user.diamond : 3,
+                    emerald: isNumber(user.emerald) ? user.emerald : 0, 
+                    iron: isNumber(user.iron) ? user.iron : 0, 
+                    gold: isNumber(user.gold) ? user.gold : 0, 
+                    coal: isNumber(user.coal) ? user.coal : 0, 
+                    stone: isNumber(user.stone) ? user.stone : 0, 
+                    candies: isNumber(user.candies) ? user.candies : 0, 
+                    gifts: isNumber(user.gifts) ? user.gifts : 0, 
+                    lastadventure: isNumber(user.lastadventure) ? user.lastadventure : 0,
+                    lastclaim: isNumber(user.lastclaim) ? user.lastclaim : 0,
+                    health: isNumber(user.health) ? user.health : 100,
+                    crime: isNumber(user.crime) ? user.crime : 0,
+                    lastcofre: isNumber(user.lastcofre) ? user.lastcofre : 0,
+                    lastdiamantes: isNumber(user.lastdiamantes) ? user.lastdiamantes : 0,
+                    lastpago: isNumber(user.lastpago) ? user.lastpago : 0,
+                    lastcode: isNumber(user.lastcode) ? user.lastcode : 0,
+                    lastcodereg: isNumber(user.lastcodereg) ? user.lastcodereg : 0,
+                    lastduel: isNumber(user.lastduel) ? user.lastduel : 0,
+                    lastmining: isNumber(user.lastmining) ? user.lastmining : 0,
+                    muto: 'muto' in user ? user.muto : false,
+                    premium: 'premium' in user ? user.premium : false,
+                    premiumTime: user.premium ? user.premiumTime || 0 : 0,
+                    registered: 'registered' in user ? user.registered : false,
+                    genre: user.genre || '',
+                    birth: user.birth || '',
+                    marry: user.marry || '',
+                    description: user.description || '',
+                    packstickers: user.packstickers || null,
+                    name: user.name || m_.name,
+                    age: isNumber(user.age) ? user.age : -1,
+                    regTime: isNumber(user.regTime) ? user.regTime : -1,
+                    afk: isNumber(user.afk) ? user.afk : -1,
+                    afkReason: user.afkReason || '',
+                    role: user.role || 'Nuv',
+                    banned: 'banned' in user ? user.banned : false,
+                    useDocument: 'useDocument' in user ? user.useDocument : false,
+                    level: isNumber(user.level) ? user.level : 0,
+                    warn: isNumber(user.warn) ? user.warn : 0,
+                    
+                    equipment: user.equipment || {
+                        weapon: 'none',
+                        armor: 'none',
+                        tool: 'none',
+                        weapon_durability: isNumber(user.equipment?.weapon_durability) ? user.equipment.weapon_durability : 0,
+                        armor_durability: isNumber(user.equipment?.armor_durability) ? user.equipment.armor_durability : 0,
+                    },
+                    inventory: user.inventory || {
+                        health_potion: 0,
+                        luck_potion: 0,
+                        escape_amulet: 0,
+                        lockpick: 0,
+                        mysterious_chest: 0,
+                    },
+                    materials: user.materials || {
+                        wood: 0,
+                        gem: 0,
+                        goblin_skin: 0,
+                        orc_bone: 0,
+                        slime_goo: 0,
+                        wolf_fur: 0,
+                        harpy_feather: 0,
+                        chitin_shell: 0,
+                        lich_phylactery: 0
+                    },
+                    status: user.status || {
+                        is_jailed: false,
+                        jailed_until: 0,
+                        is_lucky: false,
+                        lucky_until: 0,
+                    },
+                });
             } else {
-                global.db.data.users[m_.sender] = {
-                    registered: false,
-                    limit: 20,
-                    money: 0,
-                    exp: 0,
-                    level: 0,
-                    role: 'Beginner',
-                    lastclaim: 0,
-                    afk: -1,
-                    afkReason: '',
-                    banned: false,
-                    premium: false,
-                    premiumDate: 0,
-                    warn: 0,
-                }
+                global.db.data.users[sender] = {
+                    exp: 0, coin: 10, bank: 0, joincount: 1, diamond: 3, emerald: 0, iron: 0, gold: 0, coal: 0, stone: 0, candies: 0, gifts: 0, lastadventure: 0, health: 100, lastclaim: 0, lastcofre: 0, lastdiamantes: 0, lastcode: 0, lastduel: 0, lastpago: 0, lastmining: 0, lastcodereg: 0, muto: false, registered: false, genre: '', birth: '', marry: '', description: '', packstickers: null, name: m_.name, age: -1, regTime: -1, afk: -1, afkReason: '', banned: false, useDocument: false, level: 0, role: 'Nuv', premium: false, premiumTime: 0, warn: 0,
+                    equipment: { weapon: 'none', armor: 'none', tool: 'none', weapon_durability: 0, armor_durability: 0 },
+                    inventory: { health_potion: 0, luck_potion: 0, escape_amulet: 0, lockpick: 0, mysterious_chest: 0 },
+                    materials: { wood: 0, gem: 0, goblin_skin: 0, orc_bone: 0, slime_goo: 0, wolf_fur: 0, harpy_feather: 0, chitin_shell: 0, lich_phylactery: 0 },
+                    status: { is_jailed: false, jailed_until: 0, is_lucky: false, lucky_until: 0 },
+                };
             }
             
             let chat = global.db.data.chats[m_.chat]
             if (typeof chat !== 'object') global.db.data.chats[m_.chat] = {}
             if (chat) {
-                if (!('welcome' in chat)) chat.welcome = false
-                if (!('antiLink' in chat)) chat.antiLink = false
-                if (!('antiSpam' in chat)) chat.antiSpam = false
-                if (!('delete' in chat)) chat.delete = true
-                if (!('viewonce' in chat)) chat.viewonce = false
-                if (!('simi' in chat)) chat.simi = false
+                if (!('isBanned' in chat)) chat.isBanned = false
+                if (!('bannedBots' in chat)) chat.bannedBots = []
+                if (!('sAutoresponder' in chat)) chat.sAutoresponder = ''
+                if (!('welcome' in chat)) chat.welcome = true
+                if (!('welcomeText' in chat)) chat.welcomeText = null
+                if (!('byeText' in chat)) chat.byeText = null
+                if (!('autolevelup' in chat)) chat.autolevelup = false
+                if (!('autoAceptar' in chat)) chat.autoAceptar = false
+                if (!('autosticker' in chat)) chat.autosticker = false
+                if (!('autoRechazar' in chat)) chat.autoRechazar = false
+                if (!('autoresponder' in chat)) chat.autoresponder = false
                 if (!('detect' in chat)) chat.detect = true
-                if (!('sWelcome' in chat)) chat.sWelcome = ''
-                if (!('sBye' in chat)) chat.sBye = ''
-                // Add more chat properties
+                if (!('audios' in chat)) chat.audios = false
+                if (!('antiBot' in chat)) chat.antiBot = false
+                if (!('antiBot2' in chat)) chat.antiBot2 = false
+                if (!('modoadmin' in chat)) chat.modoadmin = false
+                if (!('antiLink' in chat)) chat.antiLink = true
+                if (!('antiImg' in chat)) chat.antiImg = false
+                if (!('reaction' in chat)) chat.reaction = false
+                if (!('antiArabe' in chat)) chat.antiArabe = false
+                if (!('nsfw' in chat)) chat.nsfw = false
+                if (!('antifake' in chat)) chat.antifake = false
+                if (!('delete' in chat)) chat.delete = false
+                if (!isNumber(chat.expired)) chat.expired = 0
+                if (!('botPrimario' in chat)) chat.botPrimario = null
             } else {
                 global.db.data.chats[m_.chat] = {
-                    welcome: false,
-                    antiLink: false,
-                    antiSpam: false,
-                    delete: true,
-                    viewonce: false,
-                    simi: false,
-                    detect: true,
-                    sWelcome: '',
-                    sBye: '',
+                    sAutoresponder: '', welcome: true, isBanned: false, autolevelup: false, autoresponder: false, delete: false, autoAceptar: false, autoRechazar: false, detect: true, antiBot: false,
+                    antiBot2: false, modoadmin: false, antiLink: true, antifake: false, antiArabe: false, reaction: false, nsw: false, expired: 0,
+                    welcomeText: null, byeText: null, audios: false, botPrimario: null,
+                    bannedBots: []
                 }
             }
             
@@ -139,6 +209,16 @@ export async function handler(chatUpdate) {
         const command = isCmd ? m_.text.slice(global.prefix.length).trim().split(' ')[0].toLowerCase() : ''
         const text = m_.text.slice(global.prefix.length + command.length).trim()
         
+        // ============================================================
+        // 4.1. نظام وضع المطورين (Developer Mode)
+        // ============================================================
+        const isOwner = global.owner.map(v => v[0] + '@s.whatsapp.net').includes(m_.sender)
+        
+        if (global.developerMode && !isOwner) {
+            // إذا كان وضع المطورين مفعلاً والرسالة ليست من المطور، تجاهلها
+            return
+        }
+        
         if (isCmd) {
             let plugin = null
             for (let name in global.plugins) {
@@ -151,11 +231,18 @@ export async function handler(chatUpdate) {
             
             if (plugin) {
                 try {
-                    // تحقق من الصلاحيات (Owner/Premium/Group Admin/Banned)
-                    let isOwner = global.owner.map(v => v[0] + '@s.whatsapp.net').includes(m_.sender)
-                    let isPrems = isOwner || global.db.data.users[m_.sender].premium
-                    let isGroup = m_.isGroup
-                    let isAdmin = isGroup ? global.db.data.chats[m_.chat].isAdmin : false // يجب تحديثها
+                    // تحقق من الصلاحيات الموسع
+                    const groupMetadata = m_.isGroup ? await this.groupMetadata(m_.chat).catch(_ => null) : {}
+                    const participants = m_.isGroup ? groupMetadata.participants : []
+                    const userGroup = (m_.isGroup ? participants.find((u) => this.decodeJid(u.id) === m_.sender) : {}) || {}
+                    const botGroup = (m_.isGroup ? participants.find((u) => this.decodeJid(u.id) == this.user.jid) : {}) || {}
+                    
+                    const isRAdmin = userGroup?.admin == "superadmin" || false
+                    const isAdmin = isRAdmin || userGroup?.admin == "admin" || false
+                    const isBotAdmin = botGroup?.admin == "admin" || botGroup?.admin == "superadmin" || false
+                    
+                    const isPrems = isOwner || global.db.data.users[m_.sender].premium
+                    const isGroup = m_.isGroup
                     
                     if (plugin.owner && !isOwner) {
                         m_.reply('هذا الأمر مخصص للمطور فقط.')
@@ -173,13 +260,17 @@ export async function handler(chatUpdate) {
                         m_.reply('هذا الأمر مخصص لمسؤولي المجموعة فقط.')
                         continue
                     }
+                    if (plugin.botAdmin && !isBotAdmin) {
+                        m_.reply('هذا الأمر يتطلب أن يكون البوت مسؤولاً في المجموعة.')
+                        continue
+                    }
                     if (global.db.data.users[m_.sender].banned) {
                         m_.reply('أنت محظور من استخدام البوت.')
                         continue
                     }
                     
                     // تنفيذ الأمر
-                    await plugin.execute(this, m_, { command, text, isOwner, isPrems, isGroup, isAdmin })
+                    await plugin.execute(this, m_, { command, text, isOwner, isPrems, isGroup, isAdmin, isBotAdmin })
                     
                     // تحديث الإحصائيات
                     global.db.data.stats[command] = (global.db.data.stats[command] || 0) + 1
@@ -194,8 +285,20 @@ export async function handler(chatUpdate) {
         }
         
         // ============================================================
-        // 5. معالجة الرسائل غير الأوامر (Anti-Link, AFK, Simi)
+        // 5. معالجة الرسائل غير الأوامر (All Handler)
         // ============================================================
+        
+        // تنفيذ وظيفة all لجميع الملحقات
+        for (let name in global.plugins) {
+            let module = await global.plugins[name]
+            if (module.default && typeof module.default.all === 'function') {
+                try {
+                    await module.default.all.call(this, m_, { isOwner, isPrems, isGroup, isAdmin, isBotAdmin })
+                } catch (e) {
+                    console.error(chalk.red(`Error executing all function in ${name}:`), e)
+                }
+            }
+        }
         
         // نظام AFK
         if (global.db.data.users[m_.sender].afk > -1) {
@@ -213,13 +316,13 @@ export async function handler(chatUpdate) {
             }
         }
         
-        // نظام Anti-Link
+        // نظام Anti-Link (يمكن نقله إلى ملف plugin/anti-link.js)
         if (m_.isGroup && global.db.data.chats[m_.chat].antiLink && /(https?:\/\/[^\s]+)/g.test(m_.text)) {
             // تحقق من صلاحيات البوت والمسؤولين
             // إذا كان الرابط ليس من مسؤول المجموعة، قم بحذف الرسالة وإرسال تحذير
         }
         
-        // نظام Simi (إذا كان مفعلاً)
+        // نظام Simi (يمكن نقله إلى ملف plugin/simi.js)
         if (m_.isGroup && global.db.data.chats[m_.chat].simi && !isCmd) {
             // تنفيذ وظيفة Simi
         }
@@ -227,11 +330,11 @@ export async function handler(chatUpdate) {
         // ============================================================
         // 6. معالجة رسائل الجلسات المتعددة (Jadibot)
         // ============================================================
-        // يجب أن يتم التعامل مع رسائل الجلسات المتعددة هنا
+        // لا حاجة لـ Jadibot هنا، يتم التعامل معها في ملف jadibot-serbot.js
         
     }
 }
-
+        
 // ============================================================
 // 7. وظيفة تحميل الملحقات (Plugins)
 // ============================================================
@@ -266,8 +369,7 @@ watchPlugins()
 // ============================================================
 // 9. وظيفة التحقق من صلاحيات المسؤول (Placeholder)
 // ============================================================
-// يجب أن يتم استبدال هذا بآلية تحقق حقيقية من Baileys
-global.db.data.chats[m_.chat].isAdmin = false // Placeholder
+// تم نقل التحقق من الصلاحيات إلى داخل معالج الأوامر
 
 // ============================================================
 // 10. تصدير المعالج

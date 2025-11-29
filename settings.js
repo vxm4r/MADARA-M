@@ -10,6 +10,10 @@ global.owner = [
 global.mods = []
 global.prems = []
 
+global.developerMode = false // true: البوت يرد على المطورين فقط، false: البوت يرد على الجميع
+global.subbotlimitt = 20 // الحد الأقصى لعدد الجلسات المتعددة (Jadibot)
+global.canInstall = true // التحكم في إتاحة أمر التنصيب
+
 global.APIs = {
   // Add your API keys here
 }
