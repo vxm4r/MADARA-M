@@ -8,21 +8,21 @@ import chalk from 'chalk'
 
 // ==================== معلومات المطورين والمالكين ====================
 global.owner = [
-  ['201005199558', 'KING-X-SOLO', true], // [رقم، اسم، هل هو المالك الرئيسي]
-  ['201005199558', 'KING-X-SOLO', true]
+  ['212717127742', 'ITACHI-VX', true], // [رقم، اسم، هل هو المالك الرئيسي]
+  ['212717127742', 'ITACHI-VX', true]
 ]
 global.mods = [] // قائمة المشرفين
 global.prems = [] // قائمة المستخدمين المميزين
 
 // ==================== إعدادات البوت العامة ====================
-global.BOT_NAME = 'SOLO Bot'
-global.BOT_VERSION = '2.0.0'
-global.BOT_AUTHOR = 'KING'
-global.BOT_PHONE = '201005199558' // رقم البوت بدون رمز الدولة
+global.BOT_NAME = 'MADARA BOT'
+global.BOT_VERSION = '1.0.0'
+global.BOT_AUTHOR = 'ITACHI'
+global.BOT_PHONE = '212708534476' // رقم البوت بدون رمز الدولة
 global.PREFIX = '.' // بادئة الأوامر الافتراضية
 
 // ==================== إعدادات الجلسات والتنصيب ====================
-global.SESSION_NAME = 'SOLO_SESSION' // اسم مجلد الجلسة الرئيسية
+global.SESSION_NAME = 'MADARA-SESSIONN' // اسم مجلد الجلسة الرئيسية
 global.SUB_SESSION_DIR = 'jadibot' // اسم مجلد الجلسات المتعددة (Jadibot)
 global.SUB_BOT_LIMIT = 20 // الحد الأقصى لعدد الجلسات المتعددة (Jadibot)
 global.CAN_INSTALL = true // التحكم في إتاحة أمر التنصيب (تشغيل/إيقاف)
